@@ -56,10 +56,10 @@ void fat_debug(){
 	printf("depurando\n\n");
 	
 	//Superblock
-	ds_read(SUPER, (char*)&sb);
+	ds_read(SUPER, (char*)&sb); //Read do superblock
 	printf("superblock:\n");
 	printf("magic is ");
-	if (sb.magic != MAGIC_N) {
+	if (sb.magic != MAGIC_N) { //Verifica se o magic number esta correto
 		printf("wrong: 0x%x\n", sb.magic);
 	}
 	else {
@@ -67,6 +67,14 @@ void fat_debug(){
 	}
 	printf("%d blocks\n", sb.number_blocks);
 	printf("%d block fat\n", sb.n_fat_blocks);
+
+	//Acessar Diretorio
+	ds_read(DIR, (char*)dir);
+	for (int i = 0; i < N_ITEMS; i++) {
+		if (dir[i].used) { //Se o item estiver em uso (caso 0 significa deletado/livre)
+			printf("File \"%s\":\n	size %d bytes\n	Blocks %d\n", dir[i].name, dir[i].length, dir[i].first);
+		}
+	}
 }
 
 int fat_mount(){

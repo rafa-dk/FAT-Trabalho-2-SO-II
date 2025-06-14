@@ -1,0 +1,9 @@
+#Imagens de disco
+imagem-pronta
+nova-imagem
+
+#Objeto compilados
+*.o
+
+#Executavel
+fat-sys
