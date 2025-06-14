@@ -68,13 +68,25 @@ void fat_debug(){
 	printf("%d blocks\n", sb.number_blocks);
 	printf("%d block fat\n", sb.n_fat_blocks);
 
-	//Acessar Diretorio
-	ds_read(DIR, (char*)dir);
-	for (int i = 0; i < N_ITEMS; i++) {
-		if (dir[i].used) { //Se o item estiver em uso (caso 0 significa deletado/livre)
-			printf("File \"%s\":\n	size %d bytes\n	Blocks %d\n", dir[i].name, dir[i].length, dir[i].first);
+	//Diretorio
+	ds_read(DIR, (char*)&dir); //Read do diretorio
+	fat = malloc(sb.n_fat_blocks * BLOCK_SIZE); //Aloca memoria para a tabela FAT
+	int fat_atual;
+	for (int i = 0; i < sb.n_fat_blocks; i++) { //Loop para acessar cada bloco da tabela FAT
+		ds_read(TABLE + i, ((char *)fat) + (i * BLOCK_SIZE));
+	}
+	for (int i = 0; i < N_ITEMS; i++) { //Loop para acessar cada item
+		if (dir[i].used) { //Se o item estiver em uso (1) printar (caso 0 significa deletado/livre)
+			printf("File \"%s\":\n	size %d bytes\n	Blocks %d ", dir[i].name, dir[i].length, dir[i].first);
+			fat_atual = dir[i].first;
+			while (fat[fat_atual] != EOFF) { //Enquanto o bloco atual for diferente de EOFF (1)
+				printf("%d ", fat[fat_atual]);
+				fat_atual = fat[fat_atual]; //Pega o proximo bloco do item de FAT
+			}
+			printf("\n");
 		}
 	}
+	free(fat); 
 }
 
 int fat_mount(){
