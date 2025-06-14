@@ -52,7 +52,21 @@ int fat_format(){
 }
 
 void fat_debug(){
-	printf("depurando\n");
+
+	printf("depurando\n\n");
+	
+	//Superblock
+	ds_read(SUPER, (char*)&sb);
+	printf("superblock:\n");
+	printf("magic is ");
+	if (sb.magic != MAGIC_N) {
+		printf("wrong: 0x%x\n", sb.magic);
+	}
+	else {
+		printf("ok\n");
+	}
+	printf("%d blocks\n", sb.number_blocks);
+	printf("%d block fat\n", sb.n_fat_blocks);
 }
 
 int fat_mount(){
