@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #define SUPER 0
+#define SUPER 0 
 #define TABLE 2
 #define DIR 1
 
@@ -90,7 +91,34 @@ void fat_debug(){
 }
 
 int fat_mount(){
-  	return 0;
+	if (mountState == 1) //Já montado
+	{
+		printf("Esse sistema de arquivos já foi montado!\n");
+		return -1;
+	}
+	ds_read(SUPER, (char*)&sb); //Read do superblock
+	if (sb.magic != MAGIC_N) // Checa se o magic number é valido
+	{
+		printf("Erro no magic number!\n");
+		return -1;
+	} else{ // Sistema de arquivos é valido:
+		// Alocação
+		fat = malloc(sb.n_fat_blocks * BLOCK_SIZE);
+		if (fat == NULL){
+			printf("Erro na alocação da FAT na memória!\n");
+			return -1;
+		}
+		// Leitura (será guardada num buffer)
+		for (int i = 0; i < sb.n_fat_blocks; i++) {
+			ds_read(TABLE + i, ((char*)fat) + (i * BLOCK_SIZE));
+		}
+
+		// Leitura do Diretorio (guardado em dir)
+		ds_read(DIR, (char*)&dir);
+		mountState = 1;
+
+		return 0;
+	}
 }
 
 int fat_create(char *name){
