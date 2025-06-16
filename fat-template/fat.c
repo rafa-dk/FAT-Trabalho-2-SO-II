@@ -48,7 +48,61 @@ unsigned int *fat;
 
 int mountState = 0;
 
-int fat_format(){ 
+int fat_format(){
+    //Verifica se já foi montado
+    if (mountState == 1) {
+        printf("ERRO: Nao e possivel formatar um sistema de arquivos montado.\n");
+        return -1;
+    }
+
+    printf("formatando disco\n");
+
+	int i;
+
+    sb.magic = MAGIC_N;
+    sb.number_blocks = ds_size(); //Numero total de blocos
+
+    //Calcula quantos blocos sao necessarios para a FAT
+    int fat_total = sb.number_blocks * sizeof(unsigned int);
+    sb.n_fat_blocks = (fat_total + BLOCK_SIZE - 1) / BLOCK_SIZE; //Divisao de teto com inteiros
+
+    //Write superblock no disco
+    memset(sb.empty, 0, sizeof(sb.empty));
+    ds_write(SUPER, (char*)&sb);
+
+    //Limpa todas as entradas do diretorio
+    for (i = 0; i < N_ITEMS; i++) {
+        dir[i].used = NON_OK; //NON_OK = 0.
+    }
+    ds_write(DIR, (char*)&dir);
+
+    //FAT
+    fat = malloc(sb.n_fat_blocks * BLOCK_SIZE);
+    if (fat == NULL) {
+        printf("ERRO: Falha ao alocar memoria para a FAT.\n");
+        return -1;
+    }
+
+    //Marca todos os blocos como livres
+    for (i = 0; i < sb.number_blocks; i++) {
+        fat[i] = FREE;
+    }
+
+    //Marca os blocos de metadados como ocupados
+    fat[SUPER] = EOFF; //Bloco 0: Superbloco.
+    fat[DIR]   = EOFF; //Bloco 1: Diretório.
+    //FAT.
+    for (i = 0; i < sb.n_fat_blocks; i++) {
+        fat[TABLE + i] = EOFF;
+    }
+
+    //Write a FAT no disco
+    for (i = 0; i < sb.n_fat_blocks; i++) {
+        ds_write(TABLE + i, ((char*)fat) + (i * BLOCK_SIZE));
+    }
+
+    free(fat);
+
   	return 0;
 }
 
