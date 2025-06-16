@@ -113,15 +113,15 @@ void fat_debug(){
 	//Superblock
 	ds_read(SUPER, (char*)&sb); //Read do superblock
 	printf("superblock:\n");
-	printf("magic is ");
+	printf("    magic is ");
 	if (sb.magic != MAGIC_N) { //Verifica se o magic number esta correto
 		printf("wrong: 0x%x\n", sb.magic);
 	}
 	else {
 		printf("ok\n");
 	}
-	printf("%d blocks\n", sb.number_blocks);
-	printf("%d block fat\n", sb.n_fat_blocks);
+	printf("    %d blocks\n", sb.number_blocks);
+	printf("    %d block fat\n", sb.n_fat_blocks);
 
 	//Diretorio
 	ds_read(DIR, (char*)&dir); //Read do diretorio
@@ -342,14 +342,14 @@ int fat_read(char *name, char *buff, int length, int offset) {
 
         ds_read(block_atual, block_buffer);
 
-        int bytes_to_copy_from_block = BLOCK_SIZE - offset_block;
-        if (bytes_to_copy_from_block > (length - bytes_lido)) {
-            bytes_to_copy_from_block = length - bytes_lido;
+        int bytes_copiar_block = BLOCK_SIZE - offset_block;
+        if (bytes_copiar_block > (length - bytes_lido)) {
+            bytes_copiar_block = length - bytes_lido;
         }
 
-        memcpy(buff + bytes_lido, block_buffer + offset_block, bytes_to_copy_from_block);
+        memcpy(buff + bytes_lido, block_buffer + offset_block, bytes_copiar_block);
         
-        bytes_lido += bytes_to_copy_from_block;
+        bytes_lido += bytes_copiar_block;
         offset_block = 0; //O offset dentro do bloco so se aplica na primeira iteracao
 
         block_atual = fat[block_atual];
@@ -370,6 +370,19 @@ static int block_livre() {
     return -1;
 }
 
+//Para sempre sobrescrever
+static void truncar_arquivo(dir_item *registro) {
+    int block = registro->first;
+    int prox;
+    while (block != EOFF) {
+        prox = fat[block];
+        fat[block] = FREE;
+        block = prox;
+    }
+    registro->first = EOFF;
+    registro->length = 0;
+}
+
 //Retorna a quantidade de caracteres escritos
 int fat_write(char *name, const char *buff, int length, int offset) {
     if (mountState == 0) {
@@ -377,8 +390,8 @@ int fat_write(char *name, const char *buff, int length, int offset) {
         return -1;
     }
 
-    int file_idx = encontrar_registro(name);
-    if (file_idx == -1) {
+    int index_arq = encontrar_registro(name);
+    if (index_arq == -1) {
         printf("ERRO: Arquivo '%s' nao encontrado.\n", name);
         return -1;
     }
@@ -388,81 +401,84 @@ int fat_write(char *name, const char *buff, int length, int offset) {
         return -1;
     }
 
-    dir_item *entry = &dir[file_idx];
+    dir_item *registro = &dir[index_arq];
+    if (offset == 0) {
+        truncar_arquivo(registro);
+    }
     char block_buffer[BLOCK_SIZE];
-    int bytes_written = 0;
+    int bytes_escrito = 0;
     
-    int current_block = entry->first;
-    int prev_block = -1;
+    int block_atual = registro->first;
+    int block_anterior = -1;
 
     //Se o arquivo e vazio, tenta alocar o primeiro bloco
-    if (current_block == EOFF && length > 0) {
-        int new_block = block_livre();
-        if (new_block == -1) return 0; // Disco cheio
-        entry->first = new_block;
-        current_block = new_block;
-        fat[current_block] = EOFF;
+    if (block_atual == EOFF && length > 0) {
+        int novo_block = block_livre();
+        if (novo_block == -1) return 0; //Disco cheio
+        registro->first = novo_block;
+        block_atual = novo_block;
+        fat[block_atual] = EOFF;
     }
 
     //Pular blocos ate o offset
     int blocks_to_skip = offset / BLOCK_SIZE;
     for (int i = 0; i < blocks_to_skip; i++) {
-        prev_block = current_block;
-        current_block = fat[current_block];
+        block_anterior = block_atual;
+        block_atual = fat[block_atual];
         
         //Se precisar estender o arquivo para chegar ao offset
-        if (current_block == EOFF) {
-            int new_block = block_livre();
-            if (new_block == -1) { //Disco cheio
+        if (block_atual == EOFF) {
+            int novo_block = block_livre();
+            if (novo_block == -1) { //Disco cheio
                 //Atualiza metadados antes de sair
-                entry->length = offset + bytes_written;
+                registro->length = offset + bytes_escrito;
                 ds_write(DIR, (char*)dir);
                 for(int j=0; j<sb.n_fat_blocks; j++) ds_write(TABLE+j, ((char*)fat)+(j*BLOCK_SIZE));
-                return bytes_written;
+                return bytes_escrito;
             }
-            fat[prev_block] = new_block;
-            fat[new_block] = EOFF;
-            current_block = new_block;
+            fat[block_anterior] = novo_block;
+            fat[novo_block] = EOFF;
+            block_atual = novo_block;
         }
     }
     
-    int offset_in_block = offset % BLOCK_SIZE;
+    int offset_block = offset % BLOCK_SIZE;
 
     //Escrever os dados bloco a bloco
-    while (bytes_written < length) {
+    while (bytes_escrito < length) {
         //Se o arquivo acabou, aloca um novo bloco 
-        if (current_block == EOFF) {
-            int new_block = block_livre();
-            if (new_block == -1) { //Disco cheio 
+        if (block_atual == EOFF) {
+            int novo_block = block_livre();
+            if (novo_block == -1) { //Disco cheio 
                 break; //Sai do loop, vai retornar o que escreveu ate agora
             }
-            fat[new_block] = EOFF;
-            if (prev_block != -1) {
-                fat[prev_block] = new_block;
+            fat[novo_block] = EOFF;
+            if (block_anterior != -1) {
+                fat[block_anterior] = novo_block;
             }
-            current_block = new_block;
+            block_atual = novo_block;
         }
 
-        ds_read(current_block, block_buffer); //Le bloco atual para nao sobrescrever dados desnecessariamente
+        ds_read(block_atual, block_buffer); //Le bloco atual para nao sobrescrever dados desnecessariamente
 
-        int bytes_to_write_in_block = BLOCK_SIZE - offset_in_block;
-        if (bytes_to_write_in_block > (length - bytes_written)) {
-            bytes_to_write_in_block = length - bytes_written;
+        int bytes_escrever_block = BLOCK_SIZE - offset_block;
+        if (bytes_escrever_block > (length - bytes_escrito)) {
+            bytes_escrever_block = length - bytes_escrito;
         }
 
-        memcpy(block_buffer + offset_in_block, buff + bytes_written, bytes_to_write_in_block);
-        ds_write(current_block, block_buffer);
+        memcpy(block_buffer + offset_block, buff + bytes_escrito, bytes_escrever_block);
+        ds_write(block_atual, block_buffer);
 
-        bytes_written += bytes_to_write_in_block;
-        offset_in_block = 0;
+        bytes_escrito += bytes_escrever_block;
+        offset_block = 0;
 
-        prev_block = current_block;
-        current_block = fat[current_block];
+        block_anterior = block_atual;
+        block_atual = fat[block_atual];
     }
 
     //Atualizar metadados
-    if (offset + bytes_written > entry->length) {
-        entry->length = offset + bytes_written;
+    if (offset + bytes_escrito > registro->length) {
+        registro->length = offset + bytes_escrito;
     }
     ds_write(DIR, (char*)dir); //Salva o diretorio atualizado no disco
 
@@ -471,7 +487,7 @@ int fat_write(char *name, const char *buff, int length, int offset) {
         ds_write(TABLE + i, ((char*)fat) + (i * BLOCK_SIZE));
     }
 
-    return bytes_written; //Retorna o total de bytes escritos 
+    return bytes_escrito;
 }
 
 int fat_unmount() {
