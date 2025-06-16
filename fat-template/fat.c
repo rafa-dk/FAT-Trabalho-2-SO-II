@@ -48,6 +48,39 @@ unsigned int *fat;
 
 int mountState = 0;
 
+static int block_livre() {
+    //Comeca a busca apos os blocos de metadados
+    for (int i = sb.n_fat_blocks + 2; i < sb.number_blocks; i++) {
+        if (fat[i] == FREE) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+//Para sempre sobrescrever
+static void truncar_arquivo(dir_item *registro) {
+    int block = registro->first;
+    int prox;
+    while (block != EOFF) {
+        prox = fat[block];
+        fat[block] = FREE;
+        block = prox;
+    }
+    registro->first = EOFF;
+    registro->length = 0;
+}
+
+//Encontra a registro de um arquivo no dir, retorna o indice do bloco
+static int encontrar_registro(const char *name) {
+    for (int i = 0; i < N_ITEMS; i++) {
+        if (dir[i].used && strncmp(dir[i].name, name, MAX_LETTERS) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int fat_format(){
     //Verifica se já foi montado
     if (mountState == 1) {
@@ -283,16 +316,6 @@ int fat_getsize(char *name){
     } 
 }
 
-//Encontra a registro de um arquivo no dir, retorna o indice do bloco
-static int encontrar_registro(const char *name) {
-    for (int i = 0; i < N_ITEMS; i++) {
-        if (dir[i].used && strncmp(dir[i].name, name, MAX_LETTERS) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 //Retorna a quantidade de caracteres lidos
 int fat_read(char *name, char *buff, int length, int offset) {
     if (mountState == 0) {
@@ -356,31 +379,6 @@ int fat_read(char *name, char *buff, int length, int offset) {
     }
 
     return bytes_lido; //Retorna o total de bytes lidos 
-}
-
- 
-
-static int block_livre() {
-    //Comeca a busca apos os blocos de metadados
-    for (int i = sb.n_fat_blocks + 2; i < sb.number_blocks; i++) {
-        if (fat[i] == FREE) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-//Para sempre sobrescrever
-static void truncar_arquivo(dir_item *registro) {
-    int block = registro->first;
-    int prox;
-    while (block != EOFF) {
-        prox = fat[block];
-        fat[block] = FREE;
-        block = prox;
-    }
-    registro->first = EOFF;
-    registro->length = 0;
 }
 
 //Retorna a quantidade de caracteres escritos
