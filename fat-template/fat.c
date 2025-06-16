@@ -70,7 +70,7 @@ int fat_format(){
     memset(sb.empty, 0, sizeof(sb.empty));
     ds_write(SUPER, (char*)&sb);
 
-    //Limpa todas as entradas do diretorio
+    //Limpa todas as registros do diretorio
     for (i = 0; i < N_ITEMS; i++) {
         dir[i].used = NON_OK; //NON_OK = 0.
     }
@@ -187,9 +187,79 @@ int fat_getsize( char *name){
 	return 0;
 }
 
+//Encontra a registro de um arquivo no dir, retorna o indice do bloco
+static int encontrar_registro(const char *name) {
+    for (int i = 0; i < N_ITEMS; i++) {
+        if (dir[i].used && strncmp(dir[i].name, name, MAX_LETTERS) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 //Retorna a quantidade de caracteres lidos
-int fat_read( char *name, char *buff, int length, int offset){
-	return 0;
+int fat_read(char *name, char *buff, int length, int offset) {
+    if (mountState != 1) {
+        printf("ERRO: Sistema de arquivos nao montado.\n");
+        return -1;
+    }
+
+    int index_arq = encontrar_registro(name);
+    if (index_arq == -1) {
+        printf("ERRO: Arquivo '%s' nao encontrado.\n", name);
+        return -1;
+    }
+
+    dir_item *registro = &dir[index_arq];
+
+    if (offset < 0 || offset > registro->length) {
+        printf("ERRO: Offset de leitura invalido.\n");
+        return -1;
+    }
+
+    //Nao ultrapassa do fim do arquivo
+    if (offset + length > registro->length) {
+        length = registro->length - offset;
+    }
+
+    if (length <= 0) {
+        return 0;
+    }
+
+    char block_buffer[BLOCK_SIZE];
+    int bytes_lido = 0;
+    int block_atual = registro->first;
+
+    //Pula blocos p/ chegar ao bloco do offset inicial
+    int blocks_pular = offset / BLOCK_SIZE;
+    for (int i = 0; i < blocks_pular; i++) {
+        if (block_atual == EOFF) {
+             return 0; //Offset está além do fim do arquivo
+        }
+        block_atual = fat[block_atual];
+    }
+    
+    int offset_block = offset % BLOCK_SIZE;
+
+    //Ler os dados bloco a bloco
+    while (bytes_lido < length && block_atual != EOFF) {
+
+        ds_read(block_atual, block_buffer);
+
+        int bytes_to_copy_from_block = BLOCK_SIZE - offset_block;
+        if (bytes_to_copy_from_block > (length - bytes_lido)) {
+            bytes_to_copy_from_block = length - bytes_lido;
+        }
+
+        memcpy(buff + bytes_lido, block_buffer + offset_block, bytes_to_copy_from_block);
+        
+        bytes_lido += bytes_to_copy_from_block;
+        offset_block = 0; //O offset dentro do bloco so se aplica na primeira iteracao
+
+        block_atual = fat[block_atual];
+    }
+
+    return bytes_lido; //Retorna o total de bytes lidos 
 }
 
 //Retorna a quantidade de caracteres escritos
