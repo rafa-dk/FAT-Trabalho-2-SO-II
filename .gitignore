@@ -1,9 +1,9 @@
 #Imagens de disco
-fat-template/imagem-pronta
-fat-template/nova-imagem
+fat/imagem-pronta
+fat/nova-imagem
 
 #Objeto compilados
-fat-template/*.o
+fat/*.o
 
 #Executavel
-fat-template/fat-sys
+//fat/fat-sys
