@@ -1,6 +1,6 @@
 #Imagens de disco
-fat/imagem-pronta
-fat/nova-imagem
+//fat/imagem-pronta
+//fat/nova-imagem
 
 #Objeto compilados
 fat/*.o
