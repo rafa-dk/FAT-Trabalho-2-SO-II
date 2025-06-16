@@ -273,8 +273,14 @@ int fat_delete( char *name){
     return 0;
 }
 
-int fat_getsize( char *name){ 
-	return 0;
+int fat_getsize(char *name){ 
+	int slot = encontrar_registro(name);
+    if (slot == -1){
+        printf("Arquivo não encontrado!\n");
+        return -1;
+    } else {
+        return dir[slot].length;  
+    } 
 }
 
 //Encontra a registro de um arquivo no dir, retorna o indice do bloco
