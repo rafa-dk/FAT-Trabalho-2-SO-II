@@ -2,6 +2,7 @@
 void fat_debug();
 int  fat_format();
 int  fat_mount();
+int  fat_unmount();
 
 int  fat_create( char *name);
 int  fat_delete( char *name );

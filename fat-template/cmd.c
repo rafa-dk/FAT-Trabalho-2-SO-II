@@ -153,6 +153,7 @@ int main( int argc, char *argv[] )
 	}
 
 	printf("fechando o disco simulado\n");
+	fat_unmount(); 
 	ds_close();
 
 	return 0;
