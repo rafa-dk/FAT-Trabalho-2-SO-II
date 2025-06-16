@@ -10,7 +10,3 @@ int  fat_getsize( char *name);
 
 int  fat_read( char *name, char *buff, int length, int offset );
 int  fat_write( char *name, const char *buff, int length, int offset );
-
-static int encontrar_registro(const char *name);
-static int block_livre(); 
-static void truncar_arquivo(dir_item *registro);
